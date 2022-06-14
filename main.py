@@ -1,16 +1,18 @@
 import PyPDF2
+import os
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, numbers, PatternFill, Border, Side
 from pathlib import Path 
 from PyPDF2 import PdfFileReader
-from tkinter import filedialog, Tk    
+from tkinter import filedialog   
 
 chequingAccountNumber = 54321
 savingAccountNumber = 12345
-companyName = 'Placeholder Company Name'
+companyName = 'Sample Company Name'
+accountName = 'Sample Account Name'
 
-#region  Excel Setup
+#Excel Setup
 wb = Workbook()
 wsCheque = wb['Sheet']
 wsCheque.title = "reconciliation-Cheque"
@@ -52,31 +54,26 @@ for sheet in wb:
     for column in range(len('ABCDEFG')):
         sheet[f'{"ABCDEFG"[column]}{6}'].fill = PatternFill("solid", start_color="C0C0C0")
         
-    sheet['B1'] = f"{companyName.capitalize}"
+    sheet['B1'] = f"{companyName.upper()}"
 
     if sheet == wsCheque:
-        sheet['B3'] = f"CIBC Canada Client/Trust Account-Cheque-{chequingAccountNumber}"
+        sheet['B3'] = f"{accountName}-Cheque-{chequingAccountNumber}"
     else:
-        sheet['B3'] = f"CIBC Canada Client/Trust Account-Saving Account-{savingAccountNumber}"
+        sheet['B3'] = f"{accountName}-Saving-{savingAccountNumber}"
 
     sheet['A5'].font = Font(name = 'Times New Roman', size = 12, bold = True)
     sheet['A6'] = "No." ; sheet['B6'] = "Date"; sheet['C6'] = "Description"; sheet['D6'] = "Withdrawal"; sheet['E6'] = "Deposits"; sheet['F6'] = "Balance"; sheet['G6'] = "Assigned To"; 
         
-    
-#endregion
 
 for i in range(2):  
 
     accountType = input('Chequing or savings: ')
     print(f'Please select {accountType} file')
-    if accountType.lower == "chequing":
+    if 'c' in accountType:
         wsActive = wsCheque
     else: 
         wsActive = wsSaving
 
-
-    # print(filename)
-    # print(type(filename))
     # Tk().withdraw() 
     filename = filedialog.askopenfilename()
 
@@ -89,30 +86,28 @@ for i in range(2):
     else:
         previousBalance = 0
 
-        #region Converting PDF to text file 
-        with Path('lorem_text.txt').open(mode ='w') as initialFile:
+        #Converting PDF to text file 
+        with Path('initial_text.txt').open(mode ='w') as initialFile:
             initialFile.truncate(0)
             text = ''
             for page in pdf.pages:
                 text += page.extractText()
             initialFile.write(text)
-        #endregion 
             
-        #region Obtaining closing balance and date 
-        with Path('lorem_text.txt').open(mode ='r') as initialFile:
+        #Obtaining closing balance and date 
+        with Path('initial_text.txt').open(mode ='r') as initialFile:
             initialFileRead = initialFile.readlines()
 
             closingBalanceDate = (((initialFileRead[34][19: 50])).strip()) 
             month = closingBalanceDate[0:3]
 
             closingBalance = (initialFileRead[36]) 
-            sheet['B2'] = f"Bank Reconcilation, {closingBalanceDate}"
-            sheet['A5'] = f"Cleared Transactions Per Bank Statement {closingBalanceDate}"
-        #endregion
+            wsActive['B2'] = f"Bank Reconcilation, {closingBalanceDate}"
+            wsActive['A5'] = f"Cleared Transactions Per Bank Statement {closingBalanceDate}"
 
-        #region Creating condensed copy of original text file
-        with Path('lorem_text.txt').open(mode ='r') as initialFile:    
-            with Path('lorem_text_copy.txt').open(mode ='w') as copiedFile:
+        #Removing unnecessary info from text file
+        with Path('initial_text.txt').open(mode ='r') as initialFile:    
+            with Path('copy_text.txt').open(mode ='w') as copiedFile:
                 copy = False
                 nextLineIB = False 
                 skip = 0
@@ -146,10 +141,9 @@ for i in range(2):
 
                     if copy and skip == 0:
                         copiedFile.write(line)
-        #endregion
 
-        #region Adding in transaction dates for all transactions
-        with Path('lorem_text_copy.txt').open(mode ='r') as copiedFile: 
+        #Sectioning bank statement entries
+        with Path('copy_text.txt').open(mode ='r') as copiedFile: 
                 copiedFileRead = copiedFile.readlines()
                 currentDate = ""
                 
@@ -159,13 +153,11 @@ for i in range(2):
                         currentDate = line
                     if line.isspace():
                         copiedFileRead[index] = currentDate
-        #endregion
 
-        with Path('lorem_text_copy.txt').open(mode ='w') as copiedFile:
+        with Path('copy_text.txt').open(mode ='w') as copiedFile:
             copiedFile.writelines(copiedFileRead)
 
-        #region Splitting transactions into groups and moving data into Excel 
-        with Path('lorem_text_copy.txt').open(mode ='r') as copiedFile: 
+        with Path('copy_text.txt').open(mode ='r') as copiedFile: 
                 
                 copiedFileRead = copiedFile.readlines()
 
@@ -277,6 +269,8 @@ for i in range(2):
 
         #endregion
 
-wb.save('lorem.xlsx')
+os.remove('initial_text.txt')
+os.remove('copy_text.txt')
+wb.save(f'Bank Reconciliation {closingBalanceDate}.xlsx')
     
 
